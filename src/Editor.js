@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import MonacoEditor from 'react-monaco-editor';
 
 const Editor = () => {
-  const [code, setCode] = useState('# Start typing here');
+  const [code, setCode] = useState('# type your code...');
   const fileInputRef = useRef();
 
   const options = {
@@ -46,21 +46,59 @@ const Editor = () => {
       const code = editor.getModel().getValue();
       saveFile(code);
     });
+
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KEY_H,
+      () => generateOutput(editor, 'html')
+    );
+
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KEY_P,
+      () => generateOutput(editor, 'pdf')
+    );
+
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KEY_E,
+      () => generateOutput(editor, 'epub')
+    );
+  };
+
+  const generateOutput = (editor, format) => {
+    if (window.require) {
+      const electron = window.require('electron');
+      const ipcRenderer = electron.ipcRenderer;
+      const text = editor.getModel().getValue();
+
+      ipcRenderer.send('generate', {
+        format,
+        text,
+      });
+    }
   };
 
   const saveFile = (contents) => {
-    const blob = new Blob([contents], { type: 'octet/stream' });
-    const url = window.URL.createObjectURL(blob);
+    // save via node.js process
+    if (window.require) {
+      const electron = window.require('electron');
+      const ipcRenderer = electron.ipcRenderer;
 
-    const a = document.createElement('a');
-    document.body.appendChild(a);
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'markdown.md';
-    a.click();
+      ipcRenderer.send('save', contents);
+    }
+    // save via the browser
+    else {
+      const blob = new Blob([contents], { type: 'octet/stream' });
+      const url = window.URL.createObjectURL(blob);
 
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+      const a = document.createElement('a');
+      document.body.appendChild(a);
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'markdown.md';
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
   };
 
   const onFileOpened = (event) => {
